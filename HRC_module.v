@@ -1,29 +1,34 @@
+// Heart-rate calc; counts samples between R-peaks and converts to BPM
 module HRC_module #(
-    parameter CLK_FREQ = 1000
+    parameter SAMPLE_RATE = 500
 )(
-    input clk,
-    input rst,
-    input r_peak_flag,
-    output reg [7:0] heart_rate
+    input  wire       clk,
+    input  wire       rst,
+    input  wire       sample_tick,
+    input  wire       r_peak_flag,
+    output reg  [7:0] heart_rate,
+    output reg        hr_valid
 );
 
-reg [31:0] counter;
-reg [31:0] last_interval;
+reg  [15:0] counter;
+wire [23:0] bpm_full = (counter != 16'd0) ?
+                       (24'd60 * SAMPLE_RATE) / counter : 24'd0;
 
-always @(posedge clk or posedge rst) begin
+always @(posedge clk) begin
     if (rst) begin
-        counter <= 0;
-        heart_rate <= 0;
-        last_interval <= 0;
+        counter    <= 16'd0;
+        heart_rate <= 8'd0;
+        hr_valid   <= 1'b0;
     end else begin
-        counter <= counter + 1;
-
+        hr_valid <= 1'b0;
         if (r_peak_flag) begin
-            last_interval <= counter;
-            counter <= 0;
-
-            if (last_interval != 0)
-                heart_rate <= (60 * CLK_FREQ) / last_interval;
+            counter <= 16'd0;
+            if (counter != 16'd0) begin
+                heart_rate <= (bpm_full > 24'd255) ? 8'd255 : bpm_full[7:0];
+                hr_valid   <= 1'b1;
+            end
+        end else if (sample_tick) begin
+            counter <= counter + 1'b1;
         end
     end
 end
